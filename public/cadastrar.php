@@ -1,138 +1,130 @@
 <?php
 
-require_once __DIR__ . '/../infra/conexao.php';
+require_once __DIR__ . '/funcoes.php';
 
+$mensagens = [];
 
-function listarProdutos($conexao)
-{
-    $sql = "
-        SELECT id, nome, categoria, faixa_etaria, preco, estoque
-        FROM produtos
-        ORDER BY nome ASC
-    ";
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $consulta = $conexao->prepare($sql);
-    $consulta->execute();
+    $dados = $_POST;
 
-    return $consulta->fetchAll(PDO::FETCH_ASSOC);
-}
+    $mensagens = validarProduto($dados);
 
+    if (count($mensagens) === 0) {
 
-function encontrarProduto($conexao, $id)
-{
-    $consulta = $conexao->prepare(
-        "SELECT * FROM produtos WHERE id = ?"
-    );
+        try {
 
-    $consulta->execute([$id]);
+            if (inserirProduto($conexao, $dados)) {
+                header('Location: ../index.php');
+                exit;
+            }
 
-    return $consulta->fetch(PDO::FETCH_ASSOC);
-}
+            $mensagens[] = 'Não foi possível realizar o cadastro.';
 
+        } catch (PDOException $erro) {
 
-function validarProduto($dados)
-{
-    $erros = [];
+            error_log($erro->getMessage());
 
-    $campos = [
-        'nome' => 100,
-        'categoria' => 50,
-        'faixa_etaria' => 30
-    ];
-
-    foreach ($campos as $campo => $limite) {
-
-        $valor = $dados[$campo] ?? '';
-
-        if (!is_string($valor) || trim($valor) === '') {
-
-            $nomeCampo = ucfirst(str_replace('_', ' ', $campo));
-
-            $erros[] = "$nomeCampo deve ser preenchido.";
-
-        } elseif (mb_strlen(trim($valor), 'UTF-8') > $limite) {
-
-            $nomeCampo = ucfirst(str_replace('_', ' ', $campo));
-
-            $erros[] = "$nomeCampo pode ter no máximo $limite caracteres.";
+            $mensagens[] = 'Ocorreu um erro ao salvar os dados.';
         }
     }
-
-
-    $preco = $dados['preco'] ?? '';
-
-    if (
-        !is_numeric($preco) ||
-        $preco < 0
-    ) {
-        $erros[] = 'Informe um preço válido.';
-    }
-
-
-    $estoque = $dados['estoque'] ?? '';
-
-    if (
-        filter_var($estoque, FILTER_VALIDATE_INT) === false ||
-        (int)$estoque < 0
-    ) {
-        $erros[] = 'O estoque precisa ser um número inteiro maior ou igual a zero.';
-    }
-
-
-    return $erros;
 }
 
+?>
 
-function inserirProduto($conexao, $dados)
-{
-    $sql = "
-        INSERT INTO produtos
-        (nome, categoria, faixa_etaria, preco, estoque)
-        VALUES (?, ?, ?, ?, ?)
-    ";
+<!DOCTYPE html>
+<html lang="pt-BR">
 
-    $consulta = $conexao->prepare($sql);
+<head>
+    <meta charset="UTF-8">
+    <title>Novo Produto</title>
+</head>
 
-    return $consulta->execute([
-        trim($dados['nome']),
-        trim($dados['categoria']),
-        trim($dados['faixa_etaria']),
-        $dados['preco'],
-        $dados['estoque']
-    ]);
-}
+<body>
 
+<h1>Cadastrar Produto</h1>
 
-function atualizarProduto($conexao, $id, $dados)
-{
-    $sql = "
-        UPDATE produtos
-        SET nome = ?,
-            categoria = ?,
-            faixa_etaria = ?,
-            preco = ?,
-            estoque = ?
-        WHERE id = ?
-    ";
+<?php if (!empty($mensagens)): ?>
 
-    $consulta = $conexao->prepare($sql);
+    <ul>
+        <?php foreach ($mensagens as $mensagem): ?>
+            <li><?= htmlspecialchars($mensagem) ?></li>
+        <?php endforeach; ?>
+    </ul>
 
-    return $consulta->execute([
-        trim($dados['nome']),
-        trim($dados['categoria']),
-        trim($dados['faixa_etaria']),
-        $dados['preco'],
-        $dados['estoque'],
-        $id
-    ]);
-}
+<?php endif; ?>
 
 
-function apagarProduto($conexao, $id)
-{
-    $consulta = $conexao->prepare(
-        "DELETE FROM produtos WHERE id = ?"
-    );
+<form method="POST">
 
-    return $consulta->execute([$id]);
-}
+    <label>
+        Nome:
+        <input
+            type="text"
+            name="nome"
+            value="<?= htmlspecialchars($_POST['nome'] ?? '') ?>"
+            required
+        >
+    </label>
+
+    <br><br>
+
+    <label>
+        Categoria:
+        <input
+            type="text"
+            name="categoria"
+            value="<?= htmlspecialchars($_POST['categoria'] ?? '') ?>"
+            required
+        >
+    </label>
+
+    <br><br>
+
+    <label>
+        Faixa etária:
+        <input
+            type="text"
+            name="faixa_etaria"
+            value="<?= htmlspecialchars($_POST['faixa_etaria'] ?? '') ?>"
+            required
+        >
+    </label>
+
+    <br><br>
+
+    <label>
+        Preço:
+        <input
+            type="number"
+            name="preco"
+            step="0.01"
+            value="<?= htmlspecialchars($_POST['preco'] ?? '') ?>"
+            required
+        >
+    </label>
+
+    <br><br>
+
+    <label>
+        Estoque:
+        <input
+            type="number"
+            name="estoque"
+            value="<?= htmlspecialchars($_POST['estoque'] ?? '') ?>"
+            required
+        >
+    </label>
+
+    <br><br>
+
+    <button type="submit">Cadastrar</button>
+
+</form>
+
+<p>
+    <a href="../index.php">Voltar para a lista</a>
+</p>
+
+</body>
+</html>
